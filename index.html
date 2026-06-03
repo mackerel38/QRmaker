@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Clipboard QR</title>
+
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #111;
+      background: #f5f5f7;
+    }
+
+    body {
+      margin: 0;
+      padding: 24px;
+    }
+
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, .08);
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 24px;
+    }
+
+    p {
+      line-height: 1.7;
+    }
+
+    textarea {
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 140px;
+      padding: 12px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 12px;
+      resize: vertical;
+    }
+
+    .buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 16px 0;
+    }
+
+    button {
+      appearance: none;
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 18px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      background: #111;
+      color: white;
+    }
+
+    button.secondary {
+      background: #e8e8ed;
+      color: #111;
+    }
+
+    #status {
+      margin: 12px 0;
+      color: #555;
+      font-size: 14px;
+      white-space: pre-wrap;
+    }
+
+    #qrWrap {
+      display: none;
+      margin-top: 20px;
+      padding: 18px;
+      border-radius: 16px;
+      background: #fff;
+      border: 1px solid #ddd;
+      text-align: center;
+    }
+
+    #qr {
+      display: inline-block;
+      max-width: 100%;
+    }
+
+    #qr svg {
+      width: min(100%, 420px);
+      height: auto;
+      image-rendering: pixelated;
+    }
+
+    .note {
+      margin-top: 18px;
+      padding: 12px;
+      border-radius: 12px;
+      background: #f2f2f7;
+      font-size: 14px;
+      color: #444;
+    }
+  </style>
+
+  <!-- QRコード生成ライブラリ -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+</head>
+
+<body>
+  <main>
+    <h1>Clipboard QR</h1>
+
+    <p>
+      ボタンを押すと、この端末のクリップボードを読み取り、
+      その内容をQRコードとして表示します。
+      iPhoneで読み取ると、テキストとしてコピーできます。
+    </p>
+
+    <div class="buttons">
+      <button id="readClipboardBtn">クリップボードからQRを作成</button>
+      <button id="makeQrBtn" class="secondary">入力欄からQRを作成</button>
+      <button id="copyTextBtn" class="secondary">入力欄の内容をコピー</button>
+    </div>
+
+    <textarea id="textInput" placeholder="ここにテキストを貼り付けてもQRコードを作れます"></textarea>
+
+    <div id="status"></div>
+
+    <div id="qrWrap">
+      <div id="qr"></div>
+    </div>
+
+    <div class="note">
+      注意: ブラウザの仕様上、クリップボードの読み取りはボタン操作が必要です。
+      GitHub Pages のような HTTPS 環境で動作します。
+      長すぎるテキストはQRコードに入りきらない、または読み取りにくくなる場合があります。
+    </div>
+  </main>
+
+  <script>
+    const textInput = document.getElementById("textInput");
+    const statusEl = document.getElementById("status");
+    const qrWrap = document.getElementById("qrWrap");
+    const qrEl = document.getElementById("qr");
+
+    // 日本語などをUTF-8として扱う
+    if (
+      window.qrcode &&
+      qrcode.stringToBytesFuncs &&
+      qrcode.stringToBytesFuncs["UTF-8"]
+    ) {
+      qrcode.stringToBytes = qrcode.stringToBytesFuncs["UTF-8"];
+    }
+
+    function byteLength(str) {
+      return new TextEncoder().encode(str).length;
+    }
+
+    function setStatus(message) {
+      statusEl.textContent = message;
+    }
+
+    function makeQRFromText(text) {
+      qrEl.innerHTML = "";
+      qrWrap.style.display = "none";
+
+      if (!text) {
+        setStatus("QRコードにするテキストが空です。");
+        return;
+      }
+
+      try {
+        const qr = qrcode(0, "M");
+        qr.addData(text);
+        qr.make();
+
+        qrEl.innerHTML = qr.createSvgTag(8, 4);
+        qrWrap.style.display = "block";
+
+        const chars = text.length;
+        const bytes = byteLength(text);
+
+        let message = `QRコードを作成しました。\n文字数: ${chars}\nUTF-8バイト数: ${bytes}`;
+
+        if (bytes > 1000) {
+          message += "\n\n警告: テキストが長いため、iPhoneで読み取りにくい可能性があります。";
+        }
+
+        setStatus(message);
+      } catch (error) {
+        setStatus(
+          "QRコードを作成できませんでした。\n" +
+          "テキストが長すぎる可能性があります。"
+        );
+      }
+    }
+
+    document.getElementById("readClipboardBtn").addEventListener("click", async () => {
+      if (!navigator.clipboard || !navigator.clipboard.readText) {
+        setStatus(
+          "このブラウザではクリップボード読み取りに対応していません。\n" +
+          "入力欄に手動で貼り付けてください。"
+        );
+        return;
+      }
+
+      try {
+        const text = await navigator.clipboard.readText();
+        textInput.value = text;
+        makeQRFromText(text);
+      } catch (error) {
+        setStatus(
+          "クリップボードを読み取れませんでした。\n" +
+          "ブラウザの許可設定を確認するか、入力欄に手動で貼り付けてください。"
+        );
+      }
+    });
+
+    document.getElementById("makeQrBtn").addEventListener("click", () => {
+      makeQRFromText(textInput.value);
+    });
+
+    document.getElementById("copyTextBtn").addEventListener("click", async () => {
+      const text = textInput.value;
+
+      if (!text) {
+        setStatus("コピーするテキストが空です。");
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus("入力欄の内容をコピーしました。");
+      } catch (error) {
+        textInput.focus();
+        textInput.select();
+        setStatus("自動コピーに失敗しました。入力欄を選択したので、手動でコピーしてください。");
+      }
+    });
+  </script>
+</body>
+</html>
